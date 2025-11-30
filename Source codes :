@@ -1,0 +1,206 @@
+
+# ================================================
+# 🧩 Supply Chain Analysis Project (Cleaning Part)
+
+# Import Libraries 
+import os
+import pandas as pd
+import numpy as np
+
+# Load Dataset 
+file_path = r"C:\Users\morom\OneDrive\Desktop\Final Project\supply_chain_data_new.csv"  
+df = pd.read_csv(file_path)
+
+print("✅ Data Loaded Successfully")
+print("Shape:", df.shape)
+df.head()
+
+# Standardize Column Names 
+df.columns = (
+    df.columns
+      .str.strip()             # إزالة المسافات الزائدة
+      .str.lower()             # تحويل الحروف إلى صغيرة
+      .str.replace(" ", "_")   # استبدال المسافات بشرطة سفلية _
+)
+
+print("\n✅ Column names standardized:")
+print(df.columns.tolist())
+
+# === 4️⃣ Remove Duplicate Rows ===
+before = df.shape[0]
+df.drop_duplicates(inplace=True)
+after = df.shape[0]
+
+print(f"\n✅ Removed {before - after} duplicate rows")
+
+# === 5️⃣ Detect Hidden Missing Values ===
+# استبدال القيم النصية مثل 'N/A' أو 'na' بـ NaN
+df.replace(["N/A", "n/a", "NA", "na", "?", "None", ""], np.nan, inplace=True)
+
+# ملخص القيم المفقودة
+missing_summary = df.isnull().sum()
+print("\n🔍 Missing Values Summary:")
+print(missing_summary[missing_summary > 0])
+
+# === 6️⃣ Handle Missing Values ===
+# القيم الرقمية → بالـ median
+# القيم النصية → بالـ mode
+for col in df.columns:
+    if df[col].isnull().sum() > 0:
+        if df[col].dtype in ["float64", "int64"]:
+            df[col].fillna(df[col].median(), inplace=True)
+        else:
+            df[col].fillna(df[col].mode()[0], inplace=True)
+
+print("\n✅ Missing values handled.")
+
+# === 7️⃣ Fix Data Types ===
+# التأكد أن الأعمدة الرقمية من نوع رقمي فعلاً
+numeric_cols = df.select_dtypes(include=["object"]).columns
+
+for col in numeric_cols:
+    try:
+        df[col] = pd.to_numeric(df[col])
+    except:
+        pass
+
+print("\n✅ Data types checked and corrected where possible.")
+
+# === 8️⃣ Detect and Handle Outliers ===
+# طريقة IQR للتعامل مع القيم الشاذة في الأعمدة الرقمية
+numeric_columns = df.select_dtypes(include=[np.number]).columns
+
+def remove_outliers_iqr(df, column):
+    Q1 = df[column].quantile(0.25)
+    Q3 = df[column].quantile(0.75)
+    IQR = Q3 - Q1
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+    
+    # نستخدم clip بدل حذف القيم للحفاظ على عدد الصفوف
+    df[column] = np.clip(df[column], lower, upper)
+
+for col in numeric_columns:
+    remove_outliers_iqr(df, col)
+
+print("\n✅ Outliers capped using IQR method.")
+
+#  Validate Business Logic 
+# التحقق من منطق الإيرادات: revenue ≈ price * number_of_products_sold
+df["revenue_check"] = df["price"] * df["number_of_products_sold"]
+
+inconsistent_rows = (
+    np.abs(df["revenue_generated"] - df["revenue_check"]) > 
+    0.05 * df["revenue_generated"]
+).sum()
+
+print(f"\n🔍 Inconsistent revenue entries: {inconsistent_rows}")
+
+# حذف العمود المساعد
+df.drop(columns=["revenue_check"], inplace=True, errors="ignore")
+
+#  Save Cleaned Dataset 
+cleaned_path = "supply_chain_data_cleaned.csv"
+df.to_csv(cleaned_path, index=False)
+
+print(f"\n✅ Cleaned data saved as '{cleaned_path}'")
+print("Final shape:", df.shape)
+
+# Final Verification 
+df.info()
+df.head()
+
+#  Confirm Save Path 
+cleaned_path = os.path.join(os.getcwd(), "supply_chain_data_cleaned.csv")
+print("✅ Cleaned file saved at:", cleaned_path)
+
+
+-- =========================================================
+-- 📊 Supply Chain KPIs Dashboard Queries (KPIS Part)
+-- Table: supply_chain_data_cleaned
+-- =========================================================
+
+-- 1️⃣ متوسط أوقات التنفيذ والتصنيع حسب وسيلة النقل والمسار
+SELECT 
+    transportation_modes,
+    routes,
+    ROUND(AVG(lead_time), 2) AS Avg_Lead_Time,
+    ROUND(AVG(manufacturing_lead_time), 2) AS Avg_Manufacturing_Lead_Time
+FROM supply_chain_data_cleaned
+GROUP BY transportation_modes, routes
+ORDER BY Avg_Lead_Time DESC;
+
+
+-- 2️⃣ إجمالي التكاليف ومتوسط التكلفة لكل وسيلة نقل
+SELECT 
+    transportation_modes,
+    ROUND(SUM(costs), 2) AS Total_Costs,
+    ROUND(AVG(costs), 2) AS Avg_Cost_Per_Shipment
+FROM supply_chain_data_cleaned
+GROUP BY transportation_modes
+ORDER BY Total_Costs DESC;
+
+
+-- 3️⃣ إجمالي حجم الإنتاج ومتوسط تكلفة التصنيع لكل موقع
+SELECT 
+    location,
+    ROUND(SUM(production_volumes), 2) AS Total_Production,
+    ROUND(AVG(manufacturing_costs), 2) AS Avg_Manufacturing_Cost
+FROM supply_chain_data_cleaned
+GROUP BY location
+ORDER BY Total_Production DESC;
+
+
+-- 4️⃣ نسبة المنتجات المعيبة (Defect Rate %) لكل موقع
+SELECT 
+    location,
+    ROUND(AVG(defect_rates) * 100, 2) AS Avg_Defect_Rate_Percent
+FROM supply_chain_data_cleaned
+GROUP BY location
+ORDER BY Avg_Defect_Rate_Percent DESC;
+
+
+-- 5️⃣ نسبة الفحص الناجح (Inspection Pass Rate)
+-- يفترض أن inspection_results فيها قيم مثل 'Pass' و 'Fail'
+SELECT 
+    ROUND(
+        SUM(CASE WHEN inspection_results = 'Pass' THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
+        2
+    ) AS Pass_Rate_Percent
+FROM supply_chain_data_cleaned;
+
+
+-- 6️⃣ مقارنة الأداء والتكلفة لكل Route
+SELECT 
+   
+   routes,
+    ROUND(AVG(costs), 2) AS Avg_Cost,
+    ROUND(AVG(lead_time), 2) AS Avg_Lead_Time,
+    ROUND(AVG(defect_rates) * 100, 2) AS Avg_Defect_Rate_Percent
+FROM supply_chain_data_cleaned
+GROUP BY  routes
+ORDER BY Avg_Cost DESC;
+
+
+-- 7️⃣ أهم 3 مواقع من حيث الإنتاج
+SELECT 
+    location,
+    SUM(production_volumes) AS Total_Production
+FROM supply_chain_data_cleaned
+GROUP BY location
+ORDER BY Total_Production DESC
+LIMIT 3;
+
+
+-- 8️⃣ تحليل شامل للأداء حسب وسيلة النقل
+SELECT 
+    transportation_modes,
+    ROUND(AVG(lead_time), 2) AS Avg_Lead_Time,
+    ROUND(AVG(manufacturing_costs), 2) AS Avg_Manufacturing_Cost,
+    ROUND(AVG(costs), 2) AS Avg_Total_Cost,
+    ROUND(AVG(defect_rates) * 100, 2) AS Avg_Defect_Rate_Percent
+FROM supply_chain_data_cleaned
+GROUP BY transportation_modes
+ORDER BY Avg_Total_Cost DESC;
+
+
