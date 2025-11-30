@@ -111,16 +111,17 @@ df.info()
 df.head()
 
 #  Confirm Save Path 
-cleaned_path = os.path.join(os.getcwd(), "supply_chain_data_cleaned.csv")
+cleaned_path = os.path.join(os.getcwd(), "supply_chain_data_cleanedv2.csv")
 print("✅ Cleaned file saved at:", cleaned_path)
 
 
 -- =========================================================
 -- 📊 Supply Chain KPIs Dashboard Queries (KPIS Part)
--- Table: supply_chain_data_cleaned
+-- Table: supply_chain_data_cleanedv2
 -- =========================================================
 
--- 1️⃣ متوسط أوقات التنفيذ والتصنيع حسب وسيلة النقل والمسار
+1️⃣ Average Execution and Manufacturing Times by Transportation Mode and Route:
+
 SELECT 
     transportation_modes,
     routes,
@@ -131,7 +132,12 @@ GROUP BY transportation_modes, routes
 ORDER BY Avg_Lead_Time DESC;
 
 
--- 2️⃣ إجمالي التكاليف ومتوسط التكلفة لكل وسيلة نقل
+__________________________________
+
+
+2️⃣ Total Costs and Average Cost per Transportation Mode:
+
+
 SELECT 
     transportation_modes,
     ROUND(SUM(costs), 2) AS Total_Costs,
@@ -141,7 +147,13 @@ GROUP BY transportation_modes
 ORDER BY Total_Costs DESC;
 
 
--- 3️⃣ إجمالي حجم الإنتاج ومتوسط تكلفة التصنيع لكل موقع
+
+___________________________________
+
+
+3️⃣ Total Production Volume and Average Manufacturing Cost per Location:
+
+
 SELECT 
     location,
     ROUND(SUM(production_volumes), 2) AS Total_Production,
@@ -151,7 +163,12 @@ GROUP BY location
 ORDER BY Total_Production DESC;
 
 
--- 4️⃣ نسبة المنتجات المعيبة (Defect Rate %) لكل موقع
+___________________________________
+
+
+4️⃣ Defect Rate (%) per Location:
+
+
 SELECT 
     location,
     ROUND(AVG(defect_rates) * 100, 2) AS Avg_Defect_Rate_Percent
@@ -160,8 +177,12 @@ GROUP BY location
 ORDER BY Avg_Defect_Rate_Percent DESC;
 
 
--- 5️⃣ نسبة الفحص الناجح (Inspection Pass Rate)
--- يفترض أن inspection_results فيها قيم مثل 'Pass' و 'Fail'
+__________________________________
+
+
+5️⃣ Inspection Pass Rate (%):
+
+
 SELECT 
     ROUND(
         SUM(CASE WHEN inspection_results = 'Pass' THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
@@ -170,19 +191,27 @@ SELECT
 FROM supply_chain_data_cleaned;
 
 
--- 6️⃣ مقارنة الأداء والتكلفة لكل Route
+__________________________________
+
+
+6️⃣ Performance and Cost Comparison by Route:
+
+
 SELECT 
-   
-   routes,
+    routes,
     ROUND(AVG(costs), 2) AS Avg_Cost,
     ROUND(AVG(lead_time), 2) AS Avg_Lead_Time,
     ROUND(AVG(defect_rates) * 100, 2) AS Avg_Defect_Rate_Percent
 FROM supply_chain_data_cleaned
-GROUP BY  routes
+GROUP BY routes
 ORDER BY Avg_Cost DESC;
 
 
--- 7️⃣ أهم 3 مواقع من حيث الإنتاج
+__________________________________
+
+7️⃣ Top 3 Locations by Production Volume:
+
+
 SELECT 
     location,
     SUM(production_volumes) AS Total_Production
@@ -192,7 +221,12 @@ ORDER BY Total_Production DESC
 LIMIT 3;
 
 
--- 8️⃣ تحليل شامل للأداء حسب وسيلة النقل
+__________________________________
+
+
+8️⃣ Comprehensive Performance Analysis by Transportation Mode:
+
+
 SELECT 
     transportation_modes,
     ROUND(AVG(lead_time), 2) AS Avg_Lead_Time,
@@ -202,5 +236,115 @@ SELECT
 FROM supply_chain_data_cleaned
 GROUP BY transportation_modes
 ORDER BY Avg_Total_Cost DESC;
+
+_________________________________
+
+9️⃣Production Rate by Transportation Mode:
+
+SELECT 
+    transportation_modes,
+    ROUND(SUM(production_volumes), 2) AS Total_Production,
+    ROUND(SUM(production_volumes) / COUNT(DISTINCT sku), 2) AS Avg_Production_Per_Shipment
+FROM supply_chain_data_cleanedv2
+GROUP BY transportation_modes
+ORDER BY Total_Production DESC;
+
+_________________________________
+
+🔟Average Manufacturing Time per Product:
+
+SELECT 
+    sku AS Product_ID,
+    ROUND(AVG(manufacturing_lead_time), 2) AS Avg_Manufacturing_Time
+FROM supply_chain_data_cleanedv2
+GROUP BY sku
+ORDER BY Avg_Manufacturing_Time DESC;
+
+______________________________
+
+1️⃣1️⃣Top 5 Products by Defect Rate:
+
+SELECT 
+    sku AS Product_ID,
+    ROUND(AVG(defect_rates) * 100, 2) AS Avg_Defect_Rate_Percent
+FROM supply_chain_data_cleanedv2
+GROUP BY sku
+ORDER BY Avg_Defect_Rate_Percent DESC
+LIMIT 5;
+
+____________________________
+
+1️⃣2️⃣ Average Lead Time by Supplier:
+
+SELECT 
+    supplier_name,
+    ROUND(AVG(lead_times), 2) AS Avg_Supplier_Lead_Time
+FROM supply_chain_data_cleanedv2
+GROUP BY supplier_name
+ORDER BY Avg_Supplier_Lead_Time DESC;
+
+_____________________________
+
+1️⃣3️⃣ Total Revenue by Product Type:
+
+SELECT 
+    product_type,
+    ROUND(SUM(CAST(REPLACE(REPLACE(revenue_generated, '$', ''), ',', '') AS DECIMAL(10,2))), 2) AS Total_Revenue
+FROM supply_chain_data_cleanedv2
+GROUP BY product_type
+ORDER BY Total_Revenue DESC;
+
+_______________________
+
+1️⃣4️⃣Customer demographic generates the highest average revenue per product:
+
+SELECT
+    Customer_demographics,
+    COUNT(*) AS total_products,
+    ROUND(AVG(Price), 2) AS avg_product_price,
+    ROUND(SUM(Number_of_products_sold), 2) AS total_units_sold,
+    ROUND(SUM(Price * Number_of_products_sold) / COUNT(*), 2) AS avg_revenue_per_product
+FROM supply_chain_data_cleanedv2
+GROUP BY Customer_demographics
+ORDER BY avg_revenue_per_product DESC;
+
+_________________________
+
+1️⃣5️⃣Which products are the most profitable WHEN comparing selling price versus manufacturing costs?
+
+SELECT
+SKU,
+Product_type,
+Price,
+Manufacturing_costs,
+ROUND (Price Manufacturing_costs, 2) AS profit_per_unit,
+ROUND(((Price Manufacturing_costs) / Price) * 100, 2) AS profit_margin_percent,
+Number_of_products_sold AS units_sold,
+ROUND((Price Manufacturing_costs) * Number_of_products_sold,
+2) AS total_profit,
+Supplier_name
+FROM supply_chain_data_cleanedv2
+ORDER BY profit_margin_percent DESC
+LIMIT 10;
+
+___________________________
+
+1️⃣6️⃣ the average lead time for each supplier:
+
+SELECT
+supplier_name,
+ROUND(AVG(lead_times), 2) AS avg_lead_time_days
+FROM supply_chain_data_cleanedv2
+GROUP BY supplier_name
+ORDER BY ROUND(AVG(lead_times), 2) DESC;
+
+___________________________
+
+1️⃣7️⃣ Average lead and shipping times by transportation modes and routes:
+
+SELECT transportation_modes, routes, AVG(lead_times) AS "Average Lead Times", AVG(shipping_times) AS "Average Shipping Times"
+FROM supply_chain_data_cleanedv2
+GROUP BY transportation_modes, routes
+ORDER BY transportation_modes, routes;
 
 
