@@ -100,7 +100,7 @@ print(f"\n🔍 Inconsistent revenue entries: {inconsistent_rows}")
 df.drop(columns=["revenue_check"], inplace=True, errors="ignore")
 
 #  Save Cleaned Dataset 
-cleaned_path = "supply_chain_data_cleaned.csv"
+cleaned_path = "supply_chain_data_cleanedv2.csv"
 df.to_csv(cleaned_path, index=False)
 
 print(f"\n✅ Cleaned data saved as '{cleaned_path}'")
